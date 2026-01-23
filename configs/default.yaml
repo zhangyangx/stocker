@@ -1,0 +1,14 @@
+# Stocker - 股票监测工具配置文件
+
+# 应用程序信息
+app:
+  name: "Stocker"
+  version: "1.0.0-alpha"
+
+# 用户偏好设置
+preferences:
+  refresh_interval: 30    # 刷新间隔（秒）
+
+# 监控股票列表
+stocks:
+  watchlist: []           # 监控的股票代码列表
