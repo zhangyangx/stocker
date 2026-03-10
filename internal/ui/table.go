@@ -184,7 +184,7 @@ func DisplayStockList(stocks []*models.StockData, config *TableConfig) string {
 
 		// 使用对齐函数输出
 		indexStr := fmt.Sprintf("%d", i+1)
-		priceStr := fmt.Sprintf("%.2f", stock.Current)
+		priceStr := models.FormatPrice(stock.Current)
 
 		builder.WriteString(padRight(indexStr, colIndex) + " " +
 			padRight(code, colCode) + " " +
@@ -281,11 +281,11 @@ func DisplaySingleStock(stock *models.StockData) string {
 
 	// 基本信息
 	builder.WriteString(fmt.Sprintf("市场: %s\n", stock.GetMarketName()))
-	builder.WriteString(fmt.Sprintf("最新价格: %.2f\n", stock.Current))
-	builder.WriteString(fmt.Sprintf("开盘价格: %.2f\n", stock.Opening))
-	builder.WriteString(fmt.Sprintf("昨收价格: %.2f\n", stock.Close))
-	builder.WriteString(fmt.Sprintf("最高价格: %.2f\n", stock.High))
-	builder.WriteString(fmt.Sprintf("最低价格: %.2f\n", stock.Low))
+	builder.WriteString(fmt.Sprintf("最新价格: %s\n", models.FormatPrice(stock.Current)))
+	builder.WriteString(fmt.Sprintf("开盘价格: %s\n", models.FormatPrice(stock.Opening)))
+	builder.WriteString(fmt.Sprintf("昨收价格: %s\n", models.FormatPrice(stock.Close)))
+	builder.WriteString(fmt.Sprintf("最高价格: %s\n", models.FormatPrice(stock.High)))
+	builder.WriteString(fmt.Sprintf("最低价格: %s\n", models.FormatPrice(stock.Low)))
 	builder.WriteString(fmt.Sprintf("涨跌金额: %+.2f\n", stock.Change))
 	builder.WriteString(fmt.Sprintf("涨跌幅度: %s\n", stock.FormatChange()))
 

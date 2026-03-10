@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -87,6 +88,11 @@ func (s *StockData) GetChangeColor() string {
 		return "red" // 跌
 	}
 	return "white" // 平
+}
+
+// FormatPrice 输出价格的自然字符串表示，不额外截断或补零。
+func FormatPrice(value float64) string {
+	return strconv.FormatFloat(value, 'f', -1, 64)
 }
 
 // FormatChange 格式化涨跌幅显示

@@ -221,7 +221,7 @@ func (m Model) renderTableRow(index int, stock *models.StockData, w ColumnWidths
 	nameStr = padLeft(nameStr, w.Name)
 
 	// 价格
-	priceStr := padLeft(fmt.Sprintf("%.2f", stock.Current), w.Price)
+	priceStr := padLeft(models.FormatPrice(stock.Current), w.Price)
 
 	// 涨跌幅
 	changeStr := padLeft(stock.FormatChange(), w.Change)
