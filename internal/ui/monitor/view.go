@@ -94,7 +94,10 @@ func (m Model) renderTitleBar() string {
 	title := "📈 Stocker 实时监控"
 
 	// 最后更新时间
-	updateTime := m.lastUpdate.Format("2006-01-02 15:04:05")
+	updateTime := "未获取"
+	if !m.lastUpdate.IsZero() {
+		updateTime = m.lastUpdate.Format("2006-01-02 15:04:05")
+	}
 	timeStr := fmt.Sprintf("最后更新: %s", updateTime)
 
 	// 连接状态
@@ -288,7 +291,9 @@ func (m Model) renderStatusBar() string {
 		if m.simpleMode {
 			b.WriteString(m.statusMessage)
 		} else {
-			if m.err != nil {
+			if m.pauseReason == PauseSchedule || m.connectionState == ConnectionSlow {
+				b.WriteString(warningStyle.Render(m.statusMessage))
+			} else if m.err != nil {
 				b.WriteString(errorStyle.Render(m.statusMessage))
 			} else {
 				b.WriteString(successStyle.Render(m.statusMessage))

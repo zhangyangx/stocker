@@ -32,12 +32,22 @@ type Model struct {
 	width           int
 	height          int
 	paused          bool
+	pauseReason     PauseReason
 	showHelp        bool
 	settings        *SettingsModel
 	connectionState ConnectionState
 	statusMessage   string
 	simpleMode      bool // 简洁模式标志
 }
+
+// PauseReason 暂停原因
+type PauseReason int
+
+const (
+	PauseNone PauseReason = iota
+	PauseManual
+	PauseSchedule
+)
 
 // ConnectionState 连接状态
 type ConnectionState int
@@ -55,24 +65,36 @@ func NewModel(manager *stock.Manager, cfg *config.Config, simpleMode bool) Model
 		interval = 3 * time.Second
 	}
 
-	return Model{
+	m := Model{
 		manager:         manager,
 		config:          cfg,
 		state:           StateRunning,
 		refreshInterval: interval,
-		lastUpdate:      time.Now(),
 		width:           80,
 		height:          24,
 		paused:          false,
+		pauseReason:     PauseNone,
 		showHelp:        false,
 		settings:        NewSettingsModel(cfg),
 		connectionState: ConnectionNormal,
 		simpleMode:      simpleMode,
 	}
+
+	if paused, reason := shouldAutoPauseRefreshAt(time.Now()); paused {
+		m.setPause(PauseSchedule, reason)
+	}
+
+	return m
 }
 
 // Init 初始化模型
 func (m Model) Init() tea.Cmd {
+	if m.pauseReason == PauseSchedule {
+		return tea.Batch(
+			tickCmd(m.refreshInterval),
+			tea.EnterAltScreen,
+		)
+	}
 	return tea.Batch(
 		tickCmd(m.refreshInterval),
 		fetchStockDataCmd(m.manager),
@@ -108,20 +130,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 
 		case " ": // 空格键暂停/继续
-			m.paused = !m.paused
-			if m.paused {
-				m.state = StatePaused
-				m.statusMessage = "监控已暂停"
-			} else {
-				m.state = StateRunning
-				m.statusMessage = "监控已继续"
+			if m.pauseReason == PauseSchedule {
+				m.statusMessage = "当前时段已自动暂停，可按 r 手动刷新"
+				return m, nil
+			}
+			if m.pauseReason == PauseManual {
+				m.setPause(PauseNone, "监控已继续")
 				return m, fetchStockDataCmd(m.manager)
 			}
+			m.setPause(PauseManual, "监控已暂停")
 			return m, nil
 
 		case "r": // 手动刷新
 			m.statusMessage = "正在刷新数据..."
-			m.manager.ClearCache()
+			if m.manager != nil {
+				m.manager.ClearCache()
+			}
 			return m, fetchStockDataCmd(m.manager)
 
 		case "h": // 显示帮助
@@ -134,8 +158,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tickMsg:
-		// 如果暂停中，不自动刷新
-		if m.paused {
+		if paused, reason := shouldAutoPauseRefreshAt(time.Time(msg)); paused {
+			m.setPause(PauseSchedule, reason)
+			return m, tickCmd(m.refreshInterval)
+		}
+		if m.pauseReason == PauseSchedule {
+			m.setPause(PauseNone, "已恢复自动刷新")
+		}
+		// 手动暂停时，不自动刷新
+		if m.pauseReason == PauseManual {
 			return m, tickCmd(m.refreshInterval)
 		}
 		return m, tea.Batch(
@@ -144,13 +175,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		)
 
 	case stockDataMsg:
-		m.stockData = msg.data
-		m.lastUpdate = time.Now()
 		m.err = msg.err
 		if msg.err != nil {
-			m.connectionState = ConnectionFailed
-			m.statusMessage = fmt.Sprintf("获取数据失败: %v", msg.err)
+			if len(m.stockData) > 0 {
+				m.connectionState = ConnectionSlow
+				m.statusMessage = fmt.Sprintf("刷新失败，展示最近一次成功数据: %v", msg.err)
+			} else {
+				m.stockData = msg.data
+				m.connectionState = ConnectionFailed
+				m.statusMessage = fmt.Sprintf("获取数据失败: %v", msg.err)
+			}
 		} else {
+			m.stockData = msg.data
+			m.lastUpdate = time.Now()
 			m.connectionState = ConnectionNormal
 			m.statusMessage = ""
 		}
@@ -163,6 +200,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m *Model) setPause(reason PauseReason, message string) {
+	m.pauseReason = reason
+	m.paused = reason != PauseNone
+	if message != "" {
+		m.statusMessage = message
+	}
+}
+
+func shouldAutoPauseRefreshAt(at time.Time) (bool, string) {
+	minutes := at.Hour()*60 + at.Minute()
+	if minutes >= 11*60+35 && minutes < 13*60 {
+		return true, "午间休市，已自动暂停刷新"
+	}
+	if minutes >= 15*60+5 {
+		return true, "已收盘，自动暂停刷新"
+	}
+	return false, ""
 }
 
 // handleSettingsInput 处理设置界面的输入
